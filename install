@@ -80,10 +80,10 @@ if [ -d "$TEMP_DIR" ]; then
 fi
 
 # Clone the repository
-echo "Downloading files from GitLab..." >&2
+echo "Downloading files from Github..." >&2
 git clone --single-branch --branch main https://github.com/KOD3X/sandbox.git "$TEMP_DIR"
 if [ $? -ne 0 ]; then
-    error "Error downloading from GitLab."
+    error "Error downloading from Github."
     exit 1
 fi
 
