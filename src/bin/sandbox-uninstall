@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# This script uninstalls the sandbox application by removing its files and directories.
+
+# Base directory of the script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Load modules and functions
+source "$BASE_DIR/share/sandbox/app/messages"
+
+# Check if the script is being run with superuser privileges
+if [ "$(id -u)" -ne 0 ]; then
+    warning "Superuser privileges are required for uninstallation."
+    sudo "$0"
+    exit $?
+fi
+
+SCRIPTS_TO_DELETE=(
+    "/usr/local/bin/sandbox"
+    "/usr/local/bin/sandbox-uninstall"
+)
+
+FOLDERS_TO_DELETE=(
+    "/usr/local/share/sandbox"
+)
+
+# Loop deleting folders
+for folder in "${FOLDERS_TO_DELETE[@]}"; do
+    if [ -d "$folder" ]; then
+        rm -rf "$folder"
+        success "Deleted folder: $folder"
+    else
+        warning "Folder not found: $folder"
+    fi
+done
+
+# Loop deleting scripts
+for script in "${SCRIPTS_TO_DELETE[@]}"; do
+    if [ -f "$script" ]; then
+        rm -f "$script"
+        success "Deleted script: $script"
+    else
+        warning "Script not found: $script"
+    fi
+done
+
+exit 0

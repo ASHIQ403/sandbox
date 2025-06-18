@@ -1,0 +1,263 @@
+#!/bin/sh
+set -e
+
+##############################################
+# ------------ CUSTOM ERROR CODES ------------
+##############################################
+
+EXIT_SUCCESS=0
+EXIT_GENERAL_ERROR=1
+EXIT_SWITCH_USER_ERROR=50
+EXIT_XAUTH_ERROR=51
+EXIT_GET_PASSWORD_ERROR=52
+EXIT_SET_PASSWORD_ERROR=53
+EXIT_PACKAGE_INSTALL_ERROR=54
+EXIT_USER_CREATION_ERROR=55
+
+##############################################
+# -------- FUNCTIONS TO PRINT MESSAGES -------
+##############################################
+
+# Basic colors
+GREEN=$(printf '\033[1;32m')
+YELLOW=$(printf '\033[1;33m')
+RED=$(printf '\033[1;31m')
+PINK=$(printf '\033[1;38;5;198m')
+PURPLE=$(printf '\033[1;35m')
+CYAN=$(printf '\033[1;36m')
+BOLD=$(printf '\033[1m')
+UNDERLINE=$(printf '\033[4m')
+RESET=$(printf '\033[0m')
+
+# Prompt colors
+PROMPT_GREEN='\[\033[1;32m\]'
+PROMPT_YELLOW='\[\033[1;33m\]'
+PROMPT_RED='\[\033[1;31m\]'
+PROMPT_PINK='\[\033[1;38;5;198m\]'
+PROMPT_PURPLE='\[\033[1;35m\]'
+PROMPT_CYAN='\[\033[1;36m\]'
+PROMPT_RESET='\[\033[0m\]'
+
+# Functions for colored messages
+msg() { printf "${PINK}*${RESET} %s\n" "$1"; }
+error() { printf "${RED}✗${RESET} %s\n" "$1"; }
+warning() { printf "${YELLOW}!${RESET} %s\n" "$1"; }
+success() { printf "${GREEN}✓${RESET} %s\n" "$1"; }
+
+##############################################
+# ----- FUNCTIONS FOR USER CONFIGURATION -----
+##############################################
+
+# Update the Xauthority file for graphical applications
+update_xauth() {
+    # Find the Xauthority file in the host system
+    XAUTH=$(ls /run/user/${USER_UID}/.mutter-Xwaylandauth.* 2>/dev/null | head -n 1)
+
+    # Verify if the file exists
+    if [ -z "$XAUTH" ] || [ ! -f "$XAUTH" ]; then
+        error "Error: Xauthority file not found."
+        exit $EXIT_XAUTH_ERROR
+    fi
+
+    # Copy the Xauthority file to the user's home directory
+    cp "$XAUTH" "/home/${USERNAME}/.Xauthority"
+
+    # Change ownership of the Xauthority file and set permissions
+    chown ${USER_UID}:${USER_GID} "/home/${USERNAME}/.Xauthority"
+    chmod 600 "/home/${USERNAME}/.Xauthority"
+
+    # Add the export command to .bashrc if it doesn't exist
+    if ! grep -q "export XAUTHORITY=" "/home/${USERNAME}/.bashrc"; then
+        echo "export XAUTHORITY=/home/${USERNAME}/.Xauthority" >>"/home/${USERNAME}/.bashrc"
+    fi
+}
+
+# Verify if the user already exists with the correct UID/GID
+user_exists_correctly() {
+    # Check if the user exists
+    if id "${USERNAME}" >/dev/null 2>&1; then
+        # Check if you have the correct UID
+        user_uid=$(id -u "${USERNAME}")
+        user_gid=$(id -g "${USERNAME}")
+        if [ "$user_uid" -eq "${USER_UID}" ] && [ "$user_gid" -eq "${USER_GID}" ]; then
+            return 0 # User exists with correct UID/GID
+        fi
+    fi
+    return 1 # User does not exist or has incorrect UID/GID
+}
+
+# Switch the user to the best available option
+switch_to_user() {
+    if command -v su >/dev/null 2>&1; then
+        exec su ${USERNAME}
+    else
+        error "Error: Cannot switch to user ${USERNAME}. 'su' command not found."
+        exit $EXIT_SWITCH_USER_ERROR
+    fi
+}
+
+# Get password from user (at the beginning)
+get_password() {
+    local attempts=0
+    local max_attempts=3
+    while [ $attempts -lt $max_attempts ]; do
+        printf "Enter password for user ${PINK}${USERNAME}${RESET}: "
+        # Disable echo for password input (POSIX compatible)
+        stty -echo
+        read password1
+        stty echo
+
+        # Check if password is empty
+        if [ -z "$password1" ]; then
+            printf "\n" # Move to new line before error
+            error "Password cannot be empty. Please try again."
+            attempts=$((attempts + 1))
+            continue
+        fi
+
+        printf "\n" # Only add newline if password was not empty
+
+        printf "Re-enter password for user ${PINK}${USERNAME}${RESET}: "
+        # Disable echo for password input (POSIX compatible)
+        stty -echo
+        read password2
+        stty echo
+        printf "\n" # Add newline after password input
+
+        if [ "$password1" = "$password2" ]; then
+            USER_PASSWORD="$password1"
+            success "Password accepted. The system will continue with the configuration..."
+            return 0
+        else
+            error "Passwords do not match. Please try again."
+            attempts=$((attempts + 1))
+        fi
+    done
+    error "Maximum attempts reached. Exiting..."
+    exit $EXIT_GET_PASSWORD_ERROR
+}
+
+# Set password for the user using stored password
+set_user_password() {
+    local username=$1
+
+    if command -v passwd >/dev/null 2>&1; then
+        echo "${username}:${USER_PASSWORD}" | chpasswd
+        if [ $? -eq 0 ]; then
+            success "Password set successfully for user ${PINK}${username}${RESET}"
+        else
+            error "Failed to set password."
+            exit $EXIT_SET_PASSWORD_ERROR
+        fi
+    else
+        error "Error: Command 'passwd' not found. Cannot set password."
+        exit $EXIT_SET_PASSWORD_ERROR
+    fi
+}
+
+##############################################
+# ---------- MAIN SCRIPT STARTS HERE ---------
+##############################################
+
+# Check if user configuration is needed
+if user_exists_correctly; then
+    update_xauth
+    switch_to_user
+    exit $EXIT_SUCCESS
+fi
+
+# If we get here, we need to configure the system
+msg "The system has to be configured for the first time."
+
+# Get password first, before any installations
+get_password
+
+# Now proceed with installations and configuration
+msg "Starting configuration process..."
+
+# 1. Install basic packages according to package manager
+msg "Installing essential packages..."
+if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -y && apt-get install -y sudo
+elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y sudo util-linux passwd
+elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache shadow sudo bash
+elif command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm sudo util-linux
+elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive install sudo
+else
+    echo "Error: No supported package manager found."
+    exit $EXIT_PACKAGE_INSTALL_ERROR
+fi
+
+# 2. Configure the system
+msg "Configuring the system..."
+if ! grep -q "$HOSTNAME" /etc/hosts; then
+    echo "127.0.1.1 $HOSTNAME" >>/etc/hosts
+fi
+
+# 3. Create group and user
+msg "Creating user ${PINK}${USERNAME}${RESET}..."
+
+# Delete existing user with same UID if needed
+if id -u ${USER_UID} >/dev/null 2>&1; then
+    existing_username=$(getent passwd ${USER_UID} | cut -d: -f1)
+    warning "Existing username: $existing_username"
+    if [ "$existing_username" != "${USERNAME}" ]; then
+        warning "Deleting existing user with UID ${USER_UID} (${existing_username})"
+        userdel -r -f $existing_username 2>/dev/null || true
+    fi
+fi
+
+# Create group and show warning if it fails
+if ! groupadd --gid ${USER_GID} ${USERNAME} 2>/dev/null; then
+    existing_group=$(getent group ${USER_GID} | cut -d: -f1)
+    if [ -n "$existing_group" ]; then
+        warning "Group with GID ${USER_GID} already exists as '${existing_group}'"
+    else
+        warning "Failed to create group '${USERNAME}' with GID ${USER_GID}"
+    fi
+fi
+
+# Create the user's home directory
+mkdir -p /home/${USERNAME}
+
+# Create user with the specified UID and GID
+if ! useradd --uid ${USER_UID} --gid ${USER_GID} --home-dir /home/${USERNAME} --shell /bin/bash ${USERNAME}; then
+    error "Failed to create user '${USERNAME}' with UID ${USER_UID} and GID ${USER_GID}"
+    exit $EXIT_USER_CREATION_ERROR
+fi
+
+# 4. Configure user
+msg "Configuring user ${PINK}${USERNAME}${RESET}..."
+
+# Change ownership of home directory
+chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}
+
+# Configure prompt colors
+PROMPT="${PROMPT_PINK}\u${PROMPT_RESET}@${PROMPT_PURPLE}\h${PROMPT_RESET}:\w\$ "
+echo "export PS1='$PROMPT'" >/home/${USERNAME}/.bashrc
+
+# Change ownership of .bashrc
+chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.bashrc
+chmod 644 /home/${USERNAME}/.bashrc
+
+# Configure sudo for the user
+msg "Configuring sudo..."
+mkdir -p /etc/sudoers.d
+echo "Defaults !targetpw" >/etc/sudoers.d/user_defaults
+echo "Defaults !rootpw" >>/etc/sudoers.d/user_defaults
+echo "${USERNAME} ALL=(ALL) ALL" >/etc/sudoers.d/${USERNAME}
+chmod 0440 /etc/sudoers.d/user_defaults /etc/sudoers.d/${USERNAME}
+
+# Set password for the user
+msg "Setting password for user ${PINK}${USERNAME}${RESET}..."
+set_user_password ${USERNAME}
+
+# 5. Switch to user
+success "Configuration completed."
+msg "Switching to user ${PINK}${USERNAME}${RESET}..."
+update_xauth
+switch_to_user

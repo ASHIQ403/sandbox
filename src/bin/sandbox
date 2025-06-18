@@ -1,0 +1,131 @@
+#!/bin/bash
+
+readonly VERSION="0.2.0"
+
+# Base directory of the script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Load modules and functions
+source "$BASE_DIR/share/sandbox/app/messages"
+source "$BASE_DIR/share/sandbox/app/command_builder"
+source "$BASE_DIR/share/sandbox/app/container_functions"
+source "$BASE_DIR/share/sandbox/app/help"
+
+##############################################
+# --------------- APP COMMANDS ---------------
+##############################################
+
+# Show help
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  print_help
+  exit 0
+fi
+
+# Show version
+if [[ "$1" == "--version" || "$1" == "-v" ]]; then
+  msg "Sandbox: $VERSION"
+  exit 0
+fi
+
+# Attach to a container
+if [[ "$1" == "--attach" || "$1" == "-a" ]]; then
+  # Check if the next argument is provided
+  if [[ -z "$2" || "$2" == --* ]]; then
+    error "Error: --attach requires a container name"
+    exit 1
+  fi
+
+  attach_container "$2"
+  exit 0
+fi
+
+# Remove containers
+if [[ "$1" == "--rm" ]]; then
+  # Check if the next argument is provided
+  if [[ -z "$2" || "$2" == --* ]]; then
+    error "Error: --rm requires a container name"
+    exit 1
+  fi
+
+  remove_containers "${@:2}"
+  exit 0
+fi
+
+# List containers
+if [[ "$1" == "--list" || "$1" == "-l" ]]; then
+  list_containers
+  exit 0
+fi
+
+##############################################
+# ------------ CONTAINER COMMANDS ------------
+##############################################
+
+if [[ -z "$1" ]]; then
+  error "Error: No image name provided"
+  exit 1
+fi
+
+if [[ "$1" == -* ]]; then
+  error "Error: The first argument must be the image name or a command"
+  exit 1
+fi
+
+set_image "$1"
+shift
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --name)
+    # Check if the next argument is provided
+    if [[ -z "$2" || "$2" == --* ]]; then
+      error "Error: --name requires a container name"
+      exit 1
+    fi
+
+    set_container_name "$2"
+    shift 2
+    ;;
+  --home | -h)
+    mount_home
+    shift
+    ;;
+  --isolate | -i)
+    set_isolated
+    shift
+    ;;
+  --volume | -v)
+    # Check if the next argument is provided
+    if [[ -z "$2" || "$2" == --* ]]; then
+      error "Error: --volume requires a volume specification --volume <host_path>:<container_path>"
+      exit 1
+    fi
+
+    add_volume "$2"
+    shift 2
+    ;;
+  --nvidia)
+    set_nvidia_support
+    shift
+    ;;
+  --docker-socket)
+    set_docker_support
+    shift
+    ;;
+  --dry-run)
+    set_dry_run
+    shift
+    ;;
+  *)
+    error "Unknown option: $1"
+    exit 1
+    ;;
+  esac
+done
+
+##############################################
+# ---------------- RUN COMMAND ---------------
+##############################################
+
+run_command

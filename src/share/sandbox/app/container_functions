@@ -1,0 +1,109 @@
+#!/bin/bash
+
+engine="docker"
+if ! command -v "$engine" >/dev/null 2>&1; then
+  engine="podman"
+  if ! command -v "$engine" >/dev/null 2>&1; then
+    echo "Error: Neither Docker nor Podman is installed."
+    exit 1
+  fi
+fi
+
+__check_home_mounted() {
+  local container=$1
+  local destinations
+  destinations=$($engine inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Destination}}{{"\n"}}{{end}}{{end}}' "$container" 2>/dev/null)
+  if echo "$destinations" | grep -q "^/host/home/"; then
+    echo "YES"
+  else
+    echo "NO"
+  fi
+}
+
+__check_current_dir_mounted() {
+  local container=$1
+  local destinations
+  local host_non_home_paths
+  destinations=$($engine inspect -f '{{range .Mounts}}{{if eq .Type "bind"}}{{.Destination}}{{"\n"}}{{end}}{{end}}' "$container" 2>/dev/null)
+  # Get paths that start with /host/ but not /host/home/
+  host_non_home_paths=$(echo "$destinations" | grep "^/host/" | grep -v "^/host/home/" || true)
+  if [ -n "$host_non_home_paths" ]; then
+    echo "YES"
+  else
+    echo "NO"
+  fi
+}
+
+list_containers() {
+  {
+    echo -e "NAME\tIMAGE\tCURRENT_DIR\tHOME\tCREATED\tSTATUS"
+    $engine ps -a --format '{{.Names}}|{{.Image}}|{{.RunningFor}}|{{.Status}}' | while IFS='|' read -r container_name image running_for status; do
+      local home_mounted
+      local current_dir_mounted
+
+      # Clean up any newlines or extra whitespace
+      container_name=$(echo "$container_name" | tr -d '\n' | xargs)
+      image=$(echo "$image" | tr -d '\n' | xargs)
+      running_for=$(echo "$running_for" | tr -d '\n' | xargs)
+      status=$(echo "$status" | tr -d '\n' | xargs)
+      # Check mount status
+      home_mounted=$(__check_home_mounted "$container_name")
+      current_dir_mounted=$(__check_current_dir_mounted "$container_name")
+      # Print tab-separated values
+      echo -e "${container_name}\t${image}\t${current_dir_mounted}\t${home_mounted}\t${running_for}\t${status}"
+    done
+  } | column -t -s $'\t'
+}
+
+container_exists() {
+  local container_name=$1
+  if $engine ps -a --format '{{.Names}}' | grep -q "^$container_name\$"; then
+    return 0 # Container exists
+  else
+    return 1 # Container does not exist
+  fi
+}
+
+attach_container() {
+  local container_name=$1
+
+  # Check if the container name exists
+  if ! container_exists "$container_name"; then
+    error "Error: Container name '$container_name' does not exist."
+    exit 1
+  fi
+
+  # Check if the container is running
+  if $engine ps --format '{{.Names}}' | grep -q "^$container_name\$"; then
+    $engine attach "$container_name"
+  else
+    $engine start -ai "$container_name"
+  fi
+
+  exit 0
+}
+
+remove_containers() {
+  local containers_to_remove=()
+
+  # Check if any container names were provided
+  for container_name in "$@"; do
+    if container_exists "$container_name"; then
+      containers_to_remove+=("$container_name")
+    fi
+  done
+
+  # Check if any containers were found
+  if [[ ${#containers_to_remove[@]} -eq 0 ]]; then
+    error "Error: No containers found to remove."
+    exit 1
+  fi
+
+  # Remove the containers
+  for container_name in "${containers_to_remove[@]}"; do
+    if ! $engine rm -f "$container_name"; then
+      error "Error: Failed to remove container '$container_name'."
+      exit 1
+    fi
+  done
+}

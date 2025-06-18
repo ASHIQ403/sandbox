@@ -1,0 +1,198 @@
+#!/bin/bash
+
+CONTAINER_NAME=""
+HOSTNAME=""
+IMAGE=""
+VOLUMES=()
+
+FLAG_ISOLATE=0
+FLAG_HOME=0
+FLAG_NVIDIA=0
+FLAG_DOCKER_SOCKET=0
+FLAG_DRY_RUN=0
+
+##############################################
+# ---------------- SET INPUTS ----------------
+##############################################
+
+set_container_name() {
+  CONTAINER_NAME="$1"
+}
+
+add_volume() {
+  VOLUMES+=("$1")
+}
+
+set_image() {
+  IMAGE="$1"
+  HOSTNAME="$(echo "$1" | awk -F'[/:]' '{print $(NF-1) == "" ? $1 : $(NF-1)}')-sandbox"
+
+  # Check if the hostname is valid
+  if ! [[ "$HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$ ]]; then
+    error "Error: Invalid hostname '$HOSTNAME'."
+    exit 1
+  fi
+}
+
+##############################################
+# ---------------- SET FLAGS -----------------
+##############################################
+
+mount_home() {
+  FLAG_HOME=1
+}
+
+set_isolated() {
+  FLAG_ISOLATE=1
+}
+
+set_dry_run() {
+  FLAG_DRY_RUN=1
+}
+
+set_nvidia_support() {
+  FLAG_NVIDIA=1
+}
+
+set_docker_support() {
+  FLAG_DOCKER_SOCKET=1
+}
+
+##############################################
+# ----------- CREATE THE CONTAINER -----------
+##############################################
+
+run_command() {
+  COMMAND=(
+    $engine run -it
+    # Basic container setup
+    --hostname "$HOSTNAME"
+    # Network configuration
+    --net host
+    # Security and permissions
+    --ipc host
+    --privileged
+    --security-opt label=disable
+    --security-opt apparmor=unconfined
+    # Display environment
+    --env DISPLAY
+    --env WAYLAND_DISPLAY
+    # --env XDG_RUNTIME_DIR # ! Enabling it makes blender use CPU instead of GPU in fedora
+    --env DBUS_SESSION_BUS_ADDRESS
+    # Graphics hardware access
+    --device /dev/dri:/dev/dri
+    # X11 and session volumes
+    --volume "/run/user/$(id -u)/:/run/user/$(id -u):ro"
+    # --volume "/tmp/.X11-unix:/tmp/.X11-unix:ro" # ! Investigate whether this is really needed
+    # Visual themes and fonts
+    --volume /usr/share/themes:/usr/local/share/themes:ro
+    --volume /usr/share/icons:/usr/local/share/icons:ro
+    --volume /usr/share/fonts:/usr/local/share/fonts:ro
+    # Audio configuration
+    --volume /run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse:ro
+    --env PULSE_SERVER=unix:/run/user/$(id -u)/pulse/native
+    # Working directory
+    # --workdir "/home/$USER" # ! Podman does not create the directory
+  )
+
+  # NVIDIA SUPPORT
+  if [[ $FLAG_NVIDIA -eq 1 ]]; then
+    COMMAND+=(
+      --gpus all
+      --env NVIDIA_DRIVER_CAPABILITIES=all
+    )
+  fi
+
+  # DOCKER SUPPORT
+  if [[ $FLAG_DOCKER_SOCKET -eq 1 ]]; then
+    COMMAND+=(
+      --volume /var/run/docker.sock:/var/run/docker.sock:ro
+    )
+  fi
+
+  # MOUNT HOME
+  if [[ $FLAG_HOME -eq 1 ]]; then
+    COMMAND+=(
+      --volume "$HOME:/host/home/$USER"
+    )
+  fi
+
+  # ISOLATE
+  if [[ $FLAG_ISOLATE -eq 0 ]]; then
+    COMMAND+=(
+      --volume "$(pwd):/host/$(basename "$(pwd)")"
+    )
+  fi
+
+  # VOLUMES
+  for volume in $VOLUMES; do
+    COMMAND+=(
+      --volume "$volume"
+    )
+  done
+
+  # CONTAINER NAME
+  if [[ $CONTAINER_NAME ]]; then
+    COMMAND+=(
+      --name "$CONTAINER_NAME"
+    )
+  else
+    # EPHEMERAL IF NO NAME
+    COMMAND+=(
+      --rm
+    )
+  fi
+
+  # USER
+  COMMAND+=(
+    --env USERNAME="$(id -u -n)"
+    --env USER_UID="$(id -u)"
+    --env USER_GID="$(id -g)"
+    --env SHELL=/bin/bash
+  )
+
+  # INITIAL COMMANDS
+  COMMAND+=(
+    --volume /usr/local/share/sandbox/container:/usr/local/share/sandbox/container:ro
+    --entrypoint /usr/local/share/sandbox/container/entrypoint
+  )
+
+  # IMAGE
+  COMMAND+=(
+    "$IMAGE"
+  )
+
+  if [[ $FLAG_DRY_RUN -eq 1 ]]; then
+    # Convert the command array to a string
+    cmd_str=$(printf "%s " "${COMMAND[@]}")
+    # Format the command string to add new lines before each '--'
+    cmd_str=$(echo "$cmd_str" | sed 's/--/\n  --/g')
+    # Add a backslash at the end of each line except the last
+    cmd_str=$(echo "$cmd_str" | sed '$!s/$/ \\/')
+    # Show the formatted command
+    echo "$cmd_str"
+  else
+    # Check if the container name exists
+    if container_exists "$CONTAINER_NAME"; then
+      error "Error: Container name '$CONTAINER_NAME' already exists."
+      exit 1
+    fi
+
+    # Run the command
+    "${COMMAND[@]}"
+    EXIT_CODE=$?
+
+    # Define custom error codes
+    local CUSTOM_ERROR_CODES=(50 51 52 53 54 55)
+
+    # If the exit code is in the custom error codes, remove the container
+    if [[ " ${CUSTOM_ERROR_CODES[@]} " =~ " $EXIT_CODE " ]]; then
+      if container_exists "$CONTAINER_NAME"; then
+        error "Error: Container '$CONTAINER_NAME' failed to start. Removing it."
+        remove_containers "$CONTAINER_NAME"
+      fi
+    else
+      exit $EXIT_CODE
+    fi
+  fi
+}
