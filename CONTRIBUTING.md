@@ -8,7 +8,6 @@ I'm not an absolute expert myself, so I'm more than happy to collaborate and dis
 
 ### A few guidelines for contributing:
 
-- Before submitting a PR, make sure your code is well-structured and, if possible, includes tests or usage examples.
 - If you're proposing a larger feature or significant change, consider opening an issue first to discuss the idea.
 - Keep your code clean and consistent with the project's style.
 
