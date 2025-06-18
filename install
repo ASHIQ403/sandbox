@@ -81,7 +81,7 @@ fi
 
 # Clone the repository
 echo "Downloading files from GitLab..." >&2
-git clone --single-branch --branch main https://gitlab.com/KOD3X/sandbox.git "$TEMP_DIR"
+git clone --single-branch --branch main https://github.com/KOD3X/sandbox.git "$TEMP_DIR"
 if [ $? -ne 0 ]; then
     error "Error downloading from GitLab."
     exit 1
