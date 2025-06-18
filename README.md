@@ -39,7 +39,7 @@
 # 📦 Installation
 
 ```bash
-curl -s https://raw.githubusercontent.com/KOD3X/sandbox/refs/heads/main/install | sudo bash
+curl -s https://raw.githubusercontent.com/KOD3X/sandbox/main/install | sudo bash
 ```
 
 # 🎮 Usage
